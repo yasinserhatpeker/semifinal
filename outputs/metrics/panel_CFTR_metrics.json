@@ -1,0 +1,15 @@
+{
+  "panel": "CFTR",
+  "threshold": 0.5533,
+  "oof_auc": 0.8995,
+  "macro_f1": 0.8355,
+  "f1_neg": 0.7391,
+  "f1_pos": 0.9318,
+  "best_params": {
+    "iterations": 302,
+    "depth": 6,
+    "l2_leaf_reg": 14.717341540287846,
+    "learning_rate": 0.011237254945983736,
+    "bagging_temperature": 0.9943441807688032
+  }
+}

@@ -1,0 +1,24 @@
+# Büyük veri dosyaları
+data/raw/
+data/processed/
+
+# Model dosyaları (büyük binary)
+outputs/*.pkl
+catboost_info/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Notebook checkpoint
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
