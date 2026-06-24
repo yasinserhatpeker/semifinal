@@ -36,7 +36,7 @@ METRICS_DIR   = OUTPUTS_DIR / "metrics"
 TARGET        = "Label"
 N_FOLDS       = 5
 RANDOM_STATE  = 42
-N_TRIALS      = 40
+N_TRIALS      = 30
 TOP_N         = 20
 
 
@@ -72,8 +72,8 @@ def load_features():
 
 
 def find_best_threshold(y_true: np.ndarray, y_prob: np.ndarray,
-                        lo: float = 0.20, hi: float = 0.80,
-                        steps: int = 121) -> tuple:
+                        lo: float = 0.10, hi: float = 0.90,
+                        steps: int = 161) -> tuple:
     """OOF olasılıkları üzerinde Macro F1'i maksimize eden eşiği döngüyle arar."""
     best_t, best_score = 0.5, -1.0
     for t in np.linspace(lo, hi, steps):
@@ -95,6 +95,7 @@ def build_lgbm(n_samples: int) -> LGBMClassifier:
     return LGBMClassifier(
         n_estimators=300 if n_samples < 200 else 500,
         max_depth=4, reg_lambda=5, learning_rate=0.05,
+        min_child_samples=20, subsample=0.8, subsample_freq=1,
         class_weight="balanced", random_state=RANDOM_STATE, verbose=-1,
     )
 
@@ -103,6 +104,7 @@ def build_xgb(n_neg: int, n_pos: int, n_samples: int) -> XGBClassifier:
     return XGBClassifier(
         n_estimators=300 if n_samples < 200 else 500,
         max_depth=4, reg_lambda=10, learning_rate=0.05,
+        min_child_weight=5, subsample=0.8,
         scale_pos_weight=n_neg / max(n_pos, 1),
         eval_metric="logloss", random_state=RANDOM_STATE,
         verbosity=0, n_jobs=-1,
@@ -111,7 +113,8 @@ def build_xgb(n_neg: int, n_pos: int, n_samples: int) -> XGBClassifier:
 
 def ensemble_prob(models: list, X: pd.DataFrame) -> np.ndarray:
     probs = np.stack([m.predict_proba(X)[:, 1] for m in models], axis=1)
-    return probs.mean(axis=1)
+    # CatBoost Optuna ile ayarlandi, daha yuksek agirlik alir
+    return np.average(probs, axis=1, weights=[2, 1, 1])
 
 
 def print_importance_table(imp: pd.Series, top_n: int = TOP_N):
@@ -166,10 +169,12 @@ def train():
     def objective(trial):
         params = {
             "iterations":          trial.suggest_int("iterations", 100, 600),
-            "depth":               trial.suggest_int("depth", 3, 6),
-            "l2_leaf_reg":         trial.suggest_float("l2_leaf_reg", 1, 15),
+            "depth":               trial.suggest_int("depth", 3, 5),
+            "l2_leaf_reg":         trial.suggest_float("l2_leaf_reg", 3, 20),
             "learning_rate":       trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
             "bagging_temperature": trial.suggest_float("bagging_temperature", 0, 1),
+            "min_data_in_leaf":    trial.suggest_int("min_data_in_leaf", 1, 10),
+            "colsample_bylevel":   trial.suggest_float("colsample_bylevel", 0.5, 1.0),
             "auto_class_weights": "Balanced",
             "eval_metric": "F1", "random_seed": RANDOM_STATE, "verbose": 0,
         }
@@ -248,7 +253,7 @@ def train():
     t05_mf1 = f1_score(y.values, (all_prob >= 0.50).astype(int),
                        average="macro", zero_division=0)
 
-    print(f"\n  Arama araligi : 0.20 – 0.80  (121 adim)")
+    print(f"\n  Arama araligi : 0.10 - 0.90  (161 adim)")
     print(f"  Bulunan esik  : {threshold:.4f}")
     print(f"  Macro F1 (OOF): {thresh_mf1:.4f}")
     print(f"\n  Karsilastirma:")

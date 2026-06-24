@@ -1,0 +1,17 @@
+{
+  "panel": "PAH",
+  "threshold": 0.515,
+  "oof_auc": 0.8008,
+  "oof_mcc": 0.4926,
+  "macro_f1": 0.7394,
+  "f1_neg": 0.5524,
+  "f1_pos": 0.9264,
+  "best_params": {
+    "iterations": 536,
+    "depth": 5,
+    "l2_leaf_reg": 8.414125293250699,
+    "learning_rate": 0.03273866334728452,
+    "bagging_temperature": 0.27311676925562844,
+    "min_data_in_leaf": 7
+  }
+}
