@@ -24,8 +24,6 @@ from sklearn.metrics import (
 from catboost import CatBoostClassifier
 from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
-import optuna
-optuna.logging.set_verbosity(optuna.logging.WARNING)
 warnings.filterwarnings("ignore")
 
 PANEL         = "PAH"   # <-- sadece bu satır her dosyada değişir
@@ -36,9 +34,17 @@ METRICS_DIR   = OUTPUTS_DIR / "metrics"
 TARGET        = "Label"
 N_FOLDS       = 5
 RANDOM_STATE  = 42
-N_TRIALS      = 30
 TOP_N            = 20
 FEATURE_SELECT_N = 20   # 62 NEG icin kurs boyutu kisitlamasi
+CAT_PARAMS    = {
+    'iterations':    600,
+    'learning_rate': 0.02,
+    'depth':         4,
+    'l2_leaf_reg':   5,
+    'eval_metric':   'F1',
+    'random_seed':   60,
+    'verbose':       0,
+}
 
 
 def sep(title=""):
@@ -86,20 +92,17 @@ def find_best_threshold(y_true: np.ndarray, y_prob: np.ndarray,
 
 
 def select_top_features(X: pd.DataFrame, y: pd.Series, top_n: int) -> list:
-    cb = CatBoostClassifier(
-        iterations=300, depth=4, l2_leaf_reg=5,
-        auto_class_weights="Balanced",
-        random_seed=RANDOM_STATE, verbose=0,
-    )
+    cb = CatBoostClassifier(**CAT_PARAMS, auto_class_weights="Balanced")
     cb.fit(X, y)
     imp = pd.Series(cb.feature_importances_, index=X.columns)
     return imp.nlargest(top_n).index.tolist()
 
 
-def build_catboost(params: dict) -> CatBoostClassifier:
-    p = dict(params)
-    p.update({"auto_class_weights": "Balanced", "eval_metric": "F1",
-               "random_seed": RANDOM_STATE, "verbose": 0})
+def build_catboost(params: dict = None) -> CatBoostClassifier:
+    p = dict(CAT_PARAMS)
+    if params:
+        p.update(params)
+    p['auto_class_weights'] = 'Balanced'
     return CatBoostClassifier(**p)
 
 
@@ -180,47 +183,11 @@ def train():
     X = X[selected]
     print(f"  {len(selected)} ozellik secildi ({n_all} icerisinden)")
 
-    # ── Optuna: CatBoost hiperparametre arama ─────────────────
-    sep(f"OPTUNA - CatBoost Bayesian Optimizasyon ({N_TRIALS} deneme)")
-    print("  Arama: ", end="", flush=True)
-
-    skf3 = StratifiedKFold(n_splits=3, shuffle=True, random_state=RANDOM_STATE)
-
-    def objective(trial):
-        params = {
-            "iterations":          trial.suggest_int("iterations", 100, 600),
-            "depth":               trial.suggest_int("depth", 3, 5),
-            "l2_leaf_reg":         trial.suggest_float("l2_leaf_reg", 3, 20),
-            "learning_rate":       trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
-            "bagging_temperature": trial.suggest_float("bagging_temperature", 0, 1),
-            "min_data_in_leaf":    trial.suggest_int("min_data_in_leaf", 1, 10),
-            "colsample_bylevel":   trial.suggest_float("colsample_bylevel", 0.5, 1.0),
-            "auto_class_weights": "Balanced",
-            "eval_metric": "F1", "random_seed": RANDOM_STATE, "verbose": 0,
-        }
-        fold_probs = np.zeros(len(y))
-        for tr, val in skf3.split(X, y):
-            m = CatBoostClassifier(**params)
-            m.fit(X.iloc[tr], y.iloc[tr])
-            fold_probs[val] = m.predict_proba(X.iloc[val])[:, 1]
-        # Optuna içinde de dinamik eşik arama döngüsü
-        _, score = find_best_threshold(y.values, fold_probs)
-        return score
-
-    def _progress(study, trial):
-        print(".", end="", flush=True)
-        if trial.number % 10 == 9:
-            print(f" [{trial.number+1}ok best={study.best_value:.4f}]", flush=True)
-
-    study = optuna.create_study(direction="maximize",
-                                sampler=optuna.samplers.TPESampler(seed=RANDOM_STATE))
-    study.optimize(objective, n_trials=N_TRIALS, callbacks=[_progress])
-    print()
-
-    best_params = study.best_params
-    print(f"\n  En iyi Macro F1 (3-fold, dinamik esik): {study.best_value:.4f}")
-    print(f"  En iyi parametreler:")
-    for k, v in best_params.items():
+    # ── CatBoost sabit parametreler ───────────────────────────
+    sep("CatBoost - Sabit Parametreler")
+    best_params = {}
+    print(f"  Parametreler:")
+    for k, v in CAT_PARAMS.items():
         print(f"    {k:<22}: {v}")
 
     # ── 5-Fold OOF Ensemble ───────────────────────────────────
