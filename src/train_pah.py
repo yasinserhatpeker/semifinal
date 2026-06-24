@@ -183,8 +183,9 @@ def train():
         return score
 
     def _progress(study, trial):
+        print(".", end="", flush=True)
         if trial.number % 10 == 9:
-            print(f"[{trial.number+1}ok best={study.best_value:.4f}]", end=" ", flush=True)
+            print(f" [{trial.number+1}ok best={study.best_value:.4f}]", flush=True)
 
     study = optuna.create_study(direction="maximize",
                                 sampler=optuna.samplers.TPESampler(seed=RANDOM_STATE))

@@ -1,0 +1,16 @@
+{
+  "panel": "KANSER",
+  "threshold": 0.465,
+  "oof_auc": 0.9143,
+  "oof_mcc": 0.7455,
+  "macro_f1": 0.8727,
+  "f1_neg": 0.8235,
+  "f1_pos": 0.9219,
+  "best_params": {
+    "iterations": 231,
+    "depth": 5,
+    "l2_leaf_reg": 9.2198353263329,
+    "learning_rate": 0.03892476191436637,
+    "bagging_temperature": 0.7733551584338634
+  }
+}
